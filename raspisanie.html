@@ -1,3 +1,8 @@
+<script src="config.js"></script>
+<script>
+  // теперь тут доступны SUPABASE_URL и SUPABASE_KEY
+  const sb = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+</script>
 <!DOCTYPE html>
 <html lang="ru">
 <head>
