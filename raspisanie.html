@@ -7,12 +7,25 @@
   <title>Расписание пар</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="style.css">
+  <script>
+    // Тема применяется ДО рендера — чтобы не мигало
+    (function () {
+      var saved = localStorage.getItem('theme');
+      var prefersDark = window.matchMedia &&
+        window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var theme = saved || (prefersDark ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
 </head>
 <body>
   <div class="app">
     <header>
-      <h1>📅 Расписание пар</h1>
-      <p>Общее для всех друзей</p>
+      <div class="header-text">
+        <h1>📅 Расписание пар</h1>
+        <p>Общее для всех друзей</p>
+      </div>
+      <button class="theme-btn" id="theme-toggle" title="Сменить тему">🌙</button>
     </header>
 
     <div class="card">
@@ -23,9 +36,9 @@
       <div id="pairs"></div>
 
       <div class="legend">
-        <span><i style="background:#fbbf24"></i>пара</span>
-        <span><i style="background:#34d399"></i>окно</span>
-        <span><i style="background:#e2e8f0"></i>домой</span>
+        <span><i style="background:var(--cell-class-bg)"></i>пара</span>
+        <span><i style="background:var(--cell-window-bg)"></i>окно</span>
+        <span><i style="background:var(--cell-home-bg)"></i>домой</span>
       </div>
 
       <button class="btn btn-primary" id="save">💾 Сохранить</button>
@@ -44,13 +57,8 @@
 
   <div class="toast" id="toast"></div>
 
-  <!-- 1. Библиотека Supabase (первой!) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-  <!-- 2. Конфиг с ключами -->
   <script src="config.js"></script>
-
-  <!-- 3. Основной код -->
   <script>
   (function () {
     const SUPABASE_URL = window.SUPABASE_URL;
@@ -65,6 +73,13 @@
       { n: 6, time: '16:00–17:20' }
     ];
 
+    // Иконки в ячейках
+    const ICONS = {
+      class: '📚',
+      window: '☕',
+      home: '🏠'
+    };
+
     const NAME_KEY = 'my-name';
     const state = {};
     PAIRS.forEach(p => state[p.n] = 'home');
@@ -75,9 +90,25 @@
     const saveBtn = document.getElementById('save');
     const refreshBtn = document.getElementById('refresh');
     const toastEl = document.getElementById('toast');
+    const themeBtn = document.getElementById('theme-toggle');
 
     const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+    // ---------- Тема ----------
+    function updateThemeBtn() {
+      const current = document.documentElement.getAttribute('data-theme');
+      themeBtn.textContent = current === 'dark' ? '☀️' : '🌙';
+    }
+    themeBtn.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+      updateThemeBtn();
+    });
+    updateThemeBtn();
+
+    // ---------- Toast ----------
     let toastTimer;
     function toast(msg, isError) {
       toastEl.textContent = msg;
@@ -93,6 +124,7 @@
       }[c]));
     }
 
+    // ---------- Форма: сетка пар ----------
     function renderPairs() {
       pairsEl.innerHTML = PAIRS.map(p => `
         <div class="pair-row" data-pair="${p.n}">
@@ -129,6 +161,7 @@
       PAIRS.forEach(p => highlightPair(p.n));
     }
 
+    // ---------- Загрузка ----------
     async function loadAndRender() {
       listEl.innerHTML = '<p class="loading">Загрузка…</p>';
       const { data, error } = await sb
@@ -137,53 +170,99 @@
         .order('updated_at', { ascending: true });
 
       if (error) {
-        listEl.innerHTML = '<p class="empty">Ошибка загрузки. Проверь SQL-таблицу и ключи.</p>';
+        listEl.innerHTML = '<p class="empty">Ошибка загрузки. Проверь таблицу и ключи.</p>';
         console.error(error);
         toast('Ошибка загрузки', true);
         return;
       }
       const myName = (localStorage.getItem(NAME_KEY) || '').toLowerCase();
-      renderList(data || [], myName);
+      renderTable(data || [], myName);
     }
 
-    function renderList(data, myName) {
+    // ---------- Рендер таблицы-расписания ----------
+    function renderTable(data, myName) {
       if (!data.length) {
         listEl.innerHTML = '<p class="empty">Пока никого нет. Добавь первого!</p>';
         return;
       }
 
+      // Сортировка: сначала те, у кого первая "не дом" пара раньше
       data.sort((a, b) => {
         const fa = PAIRS.find(p => a.schedule[p.n] && a.schedule[p.n] !== 'home');
         const fb = PAIRS.find(p => b.schedule[p.n] && b.schedule[p.n] !== 'home');
         return (fa ? fa.n : 99) - (fb ? fb.n : 99);
       });
 
-      listEl.innerHTML = data.map(person => {
+      // --- Заголовок: люди ---
+      const headCells = data.map(person => {
         const isMe = person.name.toLowerCase() === myName;
-        const cells = PAIRS.map(p => {
-          const v = person.schedule[p.n] || 'home';
-          const cls = v === 'class' ? 'cell-class'
-                    : v === 'window' ? 'cell-window'
-                    : 'cell-home';
-          return `<div class="person-cell ${cls}"><span class="num">${p.n}</span></div>`;
-        }).join('');
-
         return `
-          <div class="person ${isMe ? 'is-me' : ''}">
-            <div class="person-head">
-              <div class="person-name">
-                ${escapeHtml(person.name)}
-                ${isMe ? '<span class="me-badge">это ты</span>' : ''}
-              </div>
-              ${isMe ? `<button class="person-del" data-name="${escapeHtml(person.name)}">✕</button>` : ''}
-            </div>
-            <div class="person-grid">${cells}</div>
-          </div>
+          <th class="${isMe ? 'is-me-col' : ''}">
+            <span class="th-name">${escapeHtml(person.name)}</span>
+            ${isMe ? '<span class="th-me">это ты</span>' : ''}
+            ${isMe ? `<button class="th-del" data-name="${escapeHtml(person.name)}" title="Удалить">✕</button>` : ''}
+          </th>
         `;
       }).join('');
 
-      listEl.querySelectorAll('.person-del').forEach(btn => {
-        btn.addEventListener('click', async () => {
+      // --- Строки: пары ---
+      const rows = PAIRS.map(pair => {
+        const cells = data.map(person => {
+          const v = person.schedule[pair.n] || 'home';
+          const isMe = person.name.toLowerCase() === myName;
+          const cls = `cell cell-${v}${isMe ? ' is-me-col' : ''}`;
+          return `<td class="${cls}">${ICONS[v]}</td>`;
+        }).join('');
+
+        return `
+          <tr>
+            <th>
+              <span class="row-num">${pair.n} пара</span>
+              <span class="row-time">${pair.time}</span>
+            </th>
+            ${cells}
+          </tr>
+        `;
+      }).join('');
+
+      // --- Строка счётчиков: сколько людей на паре / у кого окно / кто дома ---
+      const countsCells = PAIRS.map(pair => {
+        let nClass = 0, nWindow = 0;
+        data.forEach(person => {
+          const v = person.schedule[pair.n] || 'home';
+          if (v === 'class') nClass++;
+          else if (v === 'window') nWindow++;
+        });
+        const parts = [];
+        if (nClass) parts.push(`📚${nClass}`);
+        if (nWindow) parts.push(`☕${nWindow}`);
+        return `<td>${parts.join(' ') || '—'}</td>`;
+      }).join('');
+
+      listEl.innerHTML = `
+        <div class="table-wrap">
+          <table class="schedule">
+            <thead>
+              <tr>
+                <th class="corner">Пара \ Кто</th>
+                ${headCells}
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+              <tr class="counts-row">
+                <th>всего:</th>
+                ${countsCells}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      // Удаление
+      listEl.querySelectorAll('.th-del').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
           const name = btn.dataset.name;
           if (!confirm(`Удалить «${name}» из общего расписания?`)) return;
           const { error } = await sb.from('schedules').delete().eq('name', name);
@@ -197,6 +276,7 @@
       });
     }
 
+    // ---------- Сохранение ----------
     saveBtn.addEventListener('click', async () => {
       const name = nameEl.value.trim();
       if (!name) { toast('Введи имя'); nameEl.focus(); return; }
