@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#4f46e5">
+<title>Расписание пар</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f1f5f9;
+    color: #1e293b;
+    min-height: 100vh;
+    font-size: 16px;
+    overscroll-behavior-y: contain;
+  }
+  .app { max-width: 520px; margin: 0 auto; padding: 12px 12px 80px; }
+
+  header {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+    padding: 18px 16px;
+    border-radius: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 8px 20px rgba(99,102,241,0.25);
+  }
+  header h1 { font-size: 20px; margin-bottom: 4px; }
+  header p { font-size: 13px; opacity: .9; }
+
+  .card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  }
+  .card h2 { font-size: 15px; margin-bottom: 10px; color: #475569; font-weight: 600; }
+
+  input[type="text"] {
+    width: 100%;
+    padding: 14px 14px;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 16px;
+    font-family: inherit;
+    background: #f8fafc;
+    transition: border-color .15s, background .15s;
+  }
+  input[type="text"]:focus { outline: none; border-color: #6366f1; background: #fff; }
+
+  .pair-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .pair-row:last-child { border-bottom: none; }
+
+  .pair-label { flex-shrink: 0; width: 70px; font-size: 13px; font-weight: 600; color: #334155; }
+  .pair-label small { display: block; font-weight: 400; font-size: 11px; color: #94a3b8; margin-top: 1px; }
+
+  .segmented {
+    flex: 1;
+    display: flex;
+    background: #f1f5f9;
+    border-radius: 10px;
+    padding: 3px;
+    gap: 3px;
+  }
+  .segmented button {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 9px 0;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .15s;
+    min-height: 38px;
+  }
+  .segmented button.active[data-val="class"] { background: #fbbf24; color: #78350f; box-shadow: 0 2px 6px rgba(251,191,36,0.4); }
+  .segmented button.active[data-val="window"] { background: #34d399; color: #064e3b; box-shadow: 0 2px 6px rgba(52,211,153,0.4); }
+  .segmented button.active[data-val="home"] { background: #cbd5e1; color: #334155; box-shadow: 0 2px 6px rgba(100,116,139,0.25); }
+
+  .btn {
+    width: 100%;
+    padding: 16px;
+    border: none;
+    border-radius: 14px;
+    font-size: 16px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: transform .1s;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-primary {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(99,102,241,0.35);
+  }
+
+  .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .list-header h2 { margin-bottom: 0; }
+  .refresh-btn {
+    background: #eef2ff;
+    border: none;
+    color: #4f46e5;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .refresh-btn:active { transform: scale(0.96); }
+
+  .person { padding: 12px; border-radius: 12px; background: #f8fafc; margin-bottom: 8px; position: relative; }
+  .person.is-me { background: #eef2ff; box-shadow: inset 0 0 0 2px #6366f1; }
+  .person-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; }
+  .person-name { font-size: 16px; font-weight: 700; color: #1e293b; }
+  .person-name .me-badge {
+    display: inline-block; font-size: 10px; background: #6366f1;
+    color: #fff; padding: 2px 6px; border-radius: 6px;
+    margin-left: 6px; vertical-align: middle; font-weight: 600;
+  }
+  .person-del {
+    background: #fee2e2; border: none; color: #b91c1c;
+    width: 30px; height: 30px; border-radius: 8px;
+    font-size: 14px; cursor: pointer; font-family: inherit; flex-shrink: 0;
+  }
+  .person-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+  .person-cell { text-align: center; padding: 6px 2px; border-radius: 8px; font-size: 11px; font-weight: 700; line-height: 1.2; }
+  .person-cell .num { display: block; font-size: 13px; }
+  .cell-class { background: #fbbf24; color: #78350f; }
+  .cell-window { background: #34d399; color: #064e3b; }
+  .cell-home { background: #e2e8f0; color: #94a3b8; }
+
+  .empty { text-align: center; color: #94a3b8; font-size: 14px; padding: 20px 0; }
+  .loading { text-align: center; color: #94a3b8; font-size: 14px; padding: 20px 0; }
+
+  .legend { display: flex; gap: 10px; font-size: 12px; color: #64748b; flex-wrap: wrap; margin-top: 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .legend i { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+
+  footer { text-align: center; font-size: 11px; color: #94a3b8; padding: 8px 0 16px; line-height: 1.5; }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: #1e293b; color: #fff;
+    padding: 12px 20px; border-radius: 12px;
+    font-size: 14px; font-weight: 600;
+    transition: transform .3s; z-index: 100;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+    max-width: 90vw; text-align: center;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.error { background: #b91c1c; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>📅 Расписание пар</h1>
+    <p>Общее для всех друзей</p>
+  </header>
+
+  <div class="card">
+    <h2>Твоё имя</h2>
+    <input type="text" id="name" placeholder="Например, Аня" maxlength="20" autocomplete="off">
+
+    <h2 style="margin-top:14px;">Расписание на день</h2>
+    <div id="pairs"></div>
+
+    <div class="legend">
+      <span><i style="background:#fbbf24"></i>пара</span>
+      <span><i style="background:#34d399"></i>окно</span>
+      <span><i style="background:#e2e8f0"></i>домой</span>
+    </div>
+
+    <button class="btn btn-primary" id="save">💾 Сохранить</button>
+  </div>
+
+  <div class="card">
+    <div class="list-header">
+      <h2>Кто когда учится</h2>
+      <button class="refresh-btn" id="refresh">🔄 Обновить</button>
+    </div>
+    <div id="list"><p class="loading">Загрузка…</p></div>
+  </div>
+
+  <footer>Общее расписание для всех друзей</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function () {
+  // ============================================================
+  // ТВОИ КЛЮЧИ SUPABASE
+  // ============================================================
+  const SUPABASE_URL = 'https://ktnlxkimfjdwsitswx.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0bmx4a2ltZmpkdndzaXRsc3d4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyMjE1ODYsImV4cCI6MjEwNjc5NzU4Nn0.lHRJSkTqVFK1M220fOakj3_xpxPqN4DW0e9liEg5NH4';
+  // ============================================================
+
+  const PAIRS = [
+    { n: 1, time: '8:30–9:50' },
+    { n: 2, time: '10:00–11:20' },
+    { n: 3, time: '11:30–12:50' },
+    { n: 4, time: '13:00–14:20' },
+    { n: 5, time: '14:30–15:50' },
+    { n: 6, time: '16:00–17:20' }
+  ];
+
+  const NAME_KEY = 'my-name';
+  const state = {};
+  PAIRS.forEach(p => state[p.n] = 'home');
+
+  const nameEl = document.getElementById('name');
+  const pairsEl = document.getElementById('pairs');
+  const listEl = document.getElementById('list');
+  const saveBtn = document.getElementById('save');
+  const refreshBtn = document.getElementById('refresh');
+  const toastEl = document.getElementById('toast');
+
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let toastTimer;
+  function toast(msg, isError) {
+    toastEl.textContent = msg;
+    toastEl.classList.toggle('error', !!isError);
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2200);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
+
+  function renderPairs() {
+    pairsEl.innerHTML = PAIRS.map(p => `
+      <div class="pair-row" data-pair="${p.n}">
+        <div class="pair-label">
+          ${p.n} пара
+          <small>${p.time}</small>
+        </div>
+        <div class="segmented">
+          <button data-val="class" data-pair="${p.n}">Пара</button>
+          <button data-val="window" data-pair="${p.n}">Окно</button>
+          <button data-val="home" data-pair="${p.n}">Домой</button>
+        </div>
+      </div>
+    `).join('');
+
+    pairsEl.querySelectorAll('.segmented button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state[btn.dataset.pair] = btn.dataset.val;
+        highlightPair(btn.dataset.pair);
+      });
+    });
+    PAIRS.forEach(p => highlightPair(p.n));
+  }
+
+  function highlightPair(n) {
+    const row = pairsEl.querySelector(`.pair-row[data-pair="${n}"]`);
+    row.querySelectorAll('button').forEach(b => {
+      b.classList.toggle('active', b.dataset.val === state[n]);
+    });
+  }
+
+  function resetForm() {
+    PAIRS.forEach(p => state[p.n] = 'home');
+    PAIRS.forEach(p => highlightPair(p.n));
+  }
+
+  async function loadAndRender() {
+    listEl.innerHTML = '<p class="loading">Загрузка…</p>';
+    const { data, error } = await sb
+      .from('schedules')
+      .select('name, schedule, updated_at')
+      .order('updated_at', { ascending: true });
+
+    if (error) {
+      listEl.innerHTML = '<p class="empty">Ошибка загрузки. Проверь SQL-таблицу и ключи.</p>';
+      console.error(error);
+      toast('Ошибка загрузки', true);
+      return;
+    }
+    const myName = (localStorage.getItem(NAME_KEY) || '').toLowerCase();
+    renderList(data || [], myName);
+  }
+
+  function renderList(data, myName) {
+    if (!data.length) {
+      listEl.innerHTML = '<p class="empty">Пока никого нет. Добавь первого!</p>';
+      return;
+    }
+
+    data.sort((a, b) => {
+      const fa = PAIRS.find(p => a.schedule[p.n] && a.schedule[p.n] !== 'home');
+      const fb = PAIRS.find(p => b.schedule[p.n] && b.schedule[p.n] !== 'home');
+      return (fa ? fa.n : 99) - (fb ? fb.n : 99);
+    });
+
+    listEl.innerHTML = data.map(person => {
+      const isMe = person.name.toLowerCase() === myName;
+      const cells = PAIRS.map(p => {
+        const v = person.schedule[p.n] || 'home';
+        const cls = v === 'class' ? 'cell-class'
+                  : v === 'window' ? 'cell-window'
+                  : 'cell-home';
+        return `<div class="person-cell ${cls}"><span class="num">${p.n}</span></div>`;
+      }).join('');
+
+      return `
+        <div class="person ${isMe ? 'is-me' : ''}">
+          <div class="person-head">
+            <div class="person-name">
+              ${escapeHtml(person.name)}
+              ${isMe ? '<span class="me-badge">это ты</span>' : ''}
+            </div>
+            ${isMe ? `<button class="person-del" data-name="${escapeHtml(person.name)}">✕</button>` : ''}
+          </div>
+          <div class="person-grid">${cells}</div>
+        </div>
+      `;
+    }).join('');
+
+    listEl.querySelectorAll('.person-del').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const name = btn.dataset.name;
+        if (!confirm(`Удалить «${name}» из общего расписания?`)) return;
+        const { error } = await sb.from('schedules').delete().eq('name', name);
+        if (error) { toast('Ошибка удаления', true); console.error(error); return; }
+        localStorage.removeItem(NAME_KEY);
+        nameEl.value = '';
+        resetForm();
+        toast('Удалено');
+        loadAndRender();
+      });
+    });
+  }
+
+  saveBtn.addEventListener('click', async () => {
+    const name = nameEl.value.trim();
+    if (!name) { toast('Введи имя'); nameEl.focus(); return; }
+
+    const schedule = {};
+    PAIRS.forEach(p => schedule[p.n] = state[p.n]);
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = '⏳ Сохраняю…';
+
+    const { error } = await sb
+      .from('schedules')
+      .upsert({ name, schedule, updated_at: new Date().toISOString() },
+              { onConflict: 'name' });
+
+    saveBtn.disabled = false;
+    saveBtn.textContent = '💾 Сохранить';
+
+    if (error) {
+      console.error(error);
+      toast('Ошибка: ' + error.message, true);
+      return;
+    }
+
+    localStorage.setItem(NAME_KEY, name);
+    toast('Сохранено ✓');
+    loadAndRender();
+  });
+
+  refreshBtn.addEventListener('click', () => {
+    loadAndRender();
+    toast('Обновлено');
+  });
+
+  const savedName = localStorage.getItem(NAME_KEY);
+  if (savedName) nameEl.value = savedName;
+
+  renderPairs();
+  loadAndRender();
+
+  setInterval(loadAndRender, 30000);
+})();
+</script>
+</body>
+</html>
